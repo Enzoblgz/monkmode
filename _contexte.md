@@ -13,7 +13,7 @@ App de productivité extrême sur Mac : pendant une session, tout est bloqué sa
 sites autorisés. Inspiration Cold Turkey Micromanager.
 
 ## État v1
-- Blocage apps (ferme les apps GUI non whitelistées) ✓
+- Blocage apps : **masque** (hide) les apps GUI non whitelistées au lieu de les fermer, + impose la vidéo plein écran (une fois par app) ✓ (2026-07-21)
 - Blocage sites (proxy local filtrant HTTPS/HTTP + proxy système) ✓ testé (allow→200, reste→403)
 - Sessions minutées 25/50/90 + mode hardcore ✓
 - Config JSON dans `~/.monkmode/config.json`
@@ -28,6 +28,10 @@ sites autorisés. Inspiration Cold Turkey Micromanager.
 
 ## Décisions techniques
 - Command Line Tools seul (pas de Xcode) → SwiftPM + bundle .app assemblé à la main
-- Enforcer ne tue que les apps `.regular` → ne casse pas macOS
+- Enforcer agit seulement sur les apps `.regular` → ne casse pas macOS
+- `hide()` (Cmd+H) plutôt que minimiser fenêtres : pas besoin de permission Accessibilité
+- Vidéo fermée à la fin de session (sinon overlay `.screenSaver` reste bloqué → redémarrage)
+- Fenêtre vidéo = `KeyableWindow` (borderless key-able) pour que l'Échap ferme
+- build via `--scratch-path` local : `.build` sur Google Drive plante sqlite (build.db disk I/O)
 - Proxy filtre sur la 1re ligne (absolute-form) → pas de MITM, pas de certif à installer
 - Restauration proxy garantie via atexit + signaux + backup fichier
