@@ -119,6 +119,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func formatted(_ t: TimeInterval) -> String {
         let s = Int(t.rounded())
+        if s >= 3600 {
+            return String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
+        }
         return String(format: "%d:%02d", s / 60, s % 60)
     }
 

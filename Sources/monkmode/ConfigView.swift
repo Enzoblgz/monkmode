@@ -67,12 +67,18 @@ struct ConfigView: View {
 
     private var launcher: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Stepper(value: $minutes, in: 5...240, step: 5) {
-                Text("Durée : \(minutes) min").font(.headline)
+            Stepper(value: $minutes, in: 5...600, step: 5) {
+                Text("Durée : \(durationLabel(minutes))").font(.headline)
             }
             HStack {
                 ForEach(model.config.presets, id: \.self) { p in
                     Button("\(p) min") { minutes = p }
+                        .buttonStyle(.bordered)
+                }
+            }
+            HStack {
+                ForEach([120, 240, 360, 480, 600], id: \.self) { p in
+                    Button(durationLabel(p)) { minutes = p }
                         .buttonStyle(.bordered)
                 }
             }
@@ -156,7 +162,18 @@ struct ConfigView: View {
 
     private func formatted(_ t: TimeInterval) -> String {
         let s = Int(t.rounded())
+        if s >= 3600 {
+            return String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
+        }
         return String(format: "%02d:%02d", s / 60, s % 60)
+    }
+
+    /// Durée lisible : "45 min", "1h30", "10h".
+    private func durationLabel(_ minutes: Int) -> String {
+        let h = minutes / 60, m = minutes % 60
+        if h == 0 { return "\(m) min" }
+        if m == 0 { return "\(h)h" }
+        return String(format: "%dh%02d", h, m)
     }
 
     private func appName(for bundleID: String) -> String {
