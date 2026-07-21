@@ -1,6 +1,6 @@
 import Foundation
 
-/// Configuration lue depuis ~/.focuslock/config.json
+/// Configuration lue depuis ~/.monkmode/config.json
 struct Config: Codable {
     /// Bundle identifiers des apps autorisées (ex: "com.apple.Safari").
     var allowedApps: [String]
@@ -24,7 +24,7 @@ struct Config: Codable {
 
     static var configDir: URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".focuslock", isDirectory: true)
+            .appendingPathComponent(".monkmode", isDirectory: true)
     }
 
     static var configURL: URL {
@@ -43,7 +43,7 @@ struct Config: Codable {
         do {
             return try JSONDecoder().decode(Config.self, from: data)
         } catch {
-            NSLog("FocusLock: config illisible (\(error)) — valeurs par défaut utilisées")
+            NSLog("MonkMode: config illisible (\(error)) — valeurs par défaut utilisées")
             return Config.default
         }
     }

@@ -2,7 +2,7 @@
 created: 2026-07-21
 updated: 2026-07-21
 ---
-# FocusLock
+# MonkMode
 
 App Mac de productivité extrême. Pendant une session de focus, **tout est bloqué**
 sauf les apps et les sites que tu as autorisés. Inspiré de Cold Turkey Micromanager.
@@ -22,15 +22,15 @@ sauf les apps et les sites que tu as autorisés. Inspiré de Cold Turkey Microma
 ## Installation
 
 ```bash
-bash build.sh      # compile et produit FocusLock.app
-open FocusLock.app  # lance (icône cadenas dans la barre de menu)
+bash build.sh      # compile et produit MonkMode.app
+open MonkMode.app  # lance (icône cadenas dans la barre de menu)
 ```
 
-Au premier lancement, la config par défaut est créée dans `~/.focuslock/config.json`.
+Au premier lancement, la config par défaut est créée dans `~/.monkmode/config.json`.
 
 ## Configuration
 
-`~/.focuslock/config.json` :
+`~/.monkmode/config.json` :
 
 ```json
 {
@@ -51,9 +51,9 @@ Menu → **Modifier la configuration…** ouvre ce fichier, puis **Recharger la 
 ## Fonctionnement du blocage sites
 
 Pendant une session, le proxy système pointe vers `127.0.0.1:9797`. Le navigateur passe
-donc par FocusLock, qui n'autorise que les domaines whitelistés. À la fin (ou à l'arrêt),
+donc par MonkMode, qui n'autorise que les domaines whitelistés. À la fin (ou à l'arrêt),
 l'état réseau initial est restauré — même après un crash (sauvegarde dans
-`~/.focuslock/proxy_backup.json`, rejouée au démarrage suivant).
+`~/.monkmode/proxy_backup.json`, rejouée au démarrage suivant).
 
 > La bascule du proxy système peut demander le mot de passe admin une fois par session.
 
@@ -72,4 +72,4 @@ l'état réseau initial est restauré — même après un crash (sauvegarde dans
 | `AppEnforcer.swift` | Ferme les apps non autorisées |
 | `SiteProxy.swift` | Proxy HTTP/HTTPS filtrant (Network.framework) |
 | `ProxySettings.swift` | Active/restaure le proxy système (`networksetup`) |
-| `Config.swift` | Lecture de `~/.focuslock/config.json` |
+| `Config.swift` | Lecture de `~/.monkmode/config.json` |

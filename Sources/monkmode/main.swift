@@ -39,7 +39,7 @@ final class SessionManager {
             proxy = p
             ProxySettings.enable(host: "127.0.0.1", port: proxyPort)
         } catch {
-            NSLog("FocusLock: proxy non démarré (\(error)) — blocage sites inactif")
+            NSLog("MonkMode: proxy non démarré (\(error)) — blocage sites inactif")
         }
 
         let t = Timer(timeInterval: remaining, repeats: false) { [weak self] _ in
@@ -68,7 +68,7 @@ final class SessionManager {
 }
 
 extension Notification.Name {
-    static let sessionEnded = Notification.Name("focuslock.sessionEnded")
+    static let sessionEnded = Notification.Name("monkmode.sessionEnded")
 }
 
 // MARK: - App
@@ -141,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quitter FocusLock", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quitter MonkMode", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         quit.isEnabled = !session.isHardcoreLocked
         menu.addItem(quit)
@@ -150,7 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func statusLine() -> String {
-        guard session.isActive else { return "FocusLock — inactif" }
+        guard session.isActive else { return "MonkMode — inactif" }
         return "Focus en cours — \(formatted(session.remaining)) restant"
     }
 
@@ -228,8 +228,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 // Mode test : démarre uniquement le proxy (aucun blocage d'app, aucun proxy
 // système). Sert à valider la logique de filtrage. Usage :
-//   FOCUSLOCK_PROXY_TEST="example.com" .build/debug/FocusLock
-if let allow = ProcessInfo.processInfo.environment["FOCUSLOCK_PROXY_TEST"] {
+//   MONKMODE_PROXY_TEST="example.com" .build/debug/monkmode
+if let allow = ProcessInfo.processInfo.environment["MONKMODE_PROXY_TEST"] {
     var cfg = Config.default
     cfg.allowedDomains = allow.split(separator: ",").map(String.init)
     let proxy = SiteProxy(config: cfg, port: proxyPort)

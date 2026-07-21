@@ -2,7 +2,7 @@
 created: 2026-07-21
 updated: 2026-07-21
 ---
-# _contexte — FocusLock
+# _contexte — MonkMode
 
 **Casquette parente** : [[businessman]] (build) · proche de [[LifeOS]] (verrou de focus, mais LifeOS = Android)
 **Statut** : v1 fonctionnelle (2026-07-21)
@@ -16,8 +16,8 @@ sites autorisés. Inspiration Cold Turkey Micromanager.
 - Blocage apps (ferme les apps GUI non whitelistées) ✓
 - Blocage sites (proxy local filtrant HTTPS/HTTP + proxy système) ✓ testé (allow→200, reste→403)
 - Sessions minutées 25/50/90 + mode hardcore ✓
-- Config JSON dans `~/.focuslock/config.json`
-- Build via `bash build.sh` → `FocusLock.app`
+- Config JSON dans `~/.monkmode/config.json`
+- Build via `bash build.sh` → `MonkMode.app`
 
 ## Prochaines étapes possibles
 - Interface de config graphique (au lieu du JSON)

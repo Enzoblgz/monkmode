@@ -10,7 +10,7 @@ final class SiteProxy {
     let port: UInt16
     private var config: Config
     private var listener: NWListener?
-    private let queue = DispatchQueue(label: "com.enzo.focuslock.proxy", attributes: .concurrent)
+    private let queue = DispatchQueue(label: "com.enzo.monkmode.proxy", attributes: .concurrent)
 
     init(config: Config, port: UInt16) {
         self.config = config
@@ -135,7 +135,7 @@ final class SiteProxy {
     }
 
     private func reject(_ conn: NWConnection, host: String) {
-        let body = "FocusLock a bloqué \(host)."
+        let body = "MonkMode a bloqué \(host)."
         let resp = """
         HTTP/1.1 403 Forbidden\r
         Content-Type: text/plain; charset=utf-8\r

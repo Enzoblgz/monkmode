@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "FocusLock",
+    name: "monkmode",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "FocusLock",
-            path: "Sources/FocusLock"
+            name: "monkmode",
+            path: "Sources/monkmode"
         )
     ]
 )

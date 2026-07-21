@@ -1,4 +1,4 @@
 .build/
-FocusLock.app/
+MonkMode.app/
 *.xcodeproj
 .DS_Store

@@ -4,7 +4,7 @@ import AppKit
 ///
 /// Sécurité : ne touche qu'aux apps « regular » (présence dans le Dock).
 /// Les démons/agents système (.accessory, .prohibited) ne sont jamais tués,
-/// ce qui évite de casser macOS. Finder et FocusLock lui-même sont épargnés.
+/// ce qui évite de casser macOS. Finder et MonkMode lui-même sont épargnés.
 final class AppEnforcer {
     private var timer: Timer?
     private var allowed: Set<String> = []
