@@ -34,15 +34,24 @@ final class VideoOverlay: NSObject {
         win.setFrame(screen.frame, display: true)
 
         let p = AVPlayer(url: url)
-        let view = AVPlayerView(frame: screen.frame)
-        view.player = p
-        view.controlsStyle = .none
-        view.videoGravity = .resizeAspect
-        win.contentView = ClickCatcher(target: self, action: #selector(dismiss))
-
-        let pv = view
+        let pv = AVPlayerView(frame: screen.frame)
+        pv.player = p
+        pv.controlsStyle = .none
+        pv.videoGravity = .resizeAspect
         pv.autoresizingMask = [.width, .height]
-        win.contentView?.addSubview(pv)
+
+        let container = NSView(frame: screen.frame)
+        container.autoresizingMask = [.width, .height]
+        container.addSubview(pv)
+
+        // Le capteur de clic/Échap est PLACÉ AU-DESSUS de l'AVPlayerView,
+        // sinon le player capte le clic et la vidéo ne se ferme jamais.
+        let catcher = ClickCatcher(target: self, action: #selector(dismiss))
+        catcher.frame = screen.frame
+        catcher.autoresizingMask = [.width, .height]
+        container.addSubview(catcher)
+
+        win.contentView = container
 
         self.window = win
         self.player = p
@@ -54,7 +63,7 @@ final class VideoOverlay: NSObject {
 
         NSApp.activate(ignoringOtherApps: true)
         win.makeKeyAndOrderFront(nil)
-        win.makeFirstResponder(win.contentView) // pour recevoir l'Échap
+        win.makeFirstResponder(catcher) // pour recevoir l'Échap
         p.play()
     }
 

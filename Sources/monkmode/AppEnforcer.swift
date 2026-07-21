@@ -38,11 +38,14 @@ final class AppEnforcer {
         )
         // Balayage périodique de filet de sécurité.
         let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.sweep()
+            self?.sweep(playVideo: true)
         }
         RunLoop.main.add(t, forMode: .common)
         timer = t
-        sweep()
+        // Balayage initial silencieux : on nettoie l'écran des apps ouvertes
+        // sans imposer la vidéo (sinon elle recouvre les apps autorisées au
+        // démarrage). La vidéo n'arrive qu'à l'ouverture/ré-activation ensuite.
+        sweep(playVideo: false)
     }
 
     func stop() {
@@ -53,22 +56,23 @@ final class AppEnforcer {
 
     @objc private func appLaunched(_ note: Notification) {
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
-            sweep()
+            sweep(playVideo: true)
             return
         }
-        enforce(app)
+        enforce(app, playVideo: true)
     }
 
-    private func sweep() {
+    private func sweep(playVideo: Bool) {
         for app in NSWorkspace.shared.runningApplications {
-            enforce(app)
+            enforce(app, playVideo: playVideo)
         }
     }
 
-    /// Masque l'app non autorisée (au lieu de la fermer) et impose la vidéo.
-    /// On n'agit que sur les apps visibles : une fois masquée, on ne la re-traite
-    /// pas (`isHidden` == true), ce qui évite de rejouer la vidéo en boucle.
-    private func enforce(_ app: NSRunningApplication) {
+    /// Masque l'app non autorisée (au lieu de la fermer). Impose la vidéo
+    /// seulement si `playVideo` (ouverture/ré-activation active), pas au
+    /// nettoyage initial. On n'agit que sur les apps visibles : une fois
+    /// masquée (`isHidden` == true) on ne la re-traite pas.
+    private func enforce(_ app: NSRunningApplication, playVideo: Bool) {
         guard app.activationPolicy == .regular else { return }   // uniquement apps GUI
         guard app != NSRunningApplication.current else { return } // pas nous-mêmes
         guard let bid = app.bundleIdentifier else { return }
@@ -76,6 +80,6 @@ final class AppEnforcer {
         guard !app.isHidden else { return } // déjà masquée -> rien à faire
 
         app.hide()
-        onBlock?()
+        if playVideo { onBlock?() }
     }
 }
