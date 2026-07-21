@@ -18,7 +18,6 @@ struct ConfigView: View {
                 Divider()
                 domainsSection
                 appsSection
-                videoSection
             }
             .padding(24)
         }
@@ -153,29 +152,6 @@ struct ConfigView: View {
         }
     }
 
-    // MARK: Vidéo de blocage
-
-    private var videoSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Vidéo de blocage").font(.headline)
-            Text("Jouée en plein écran quand tu tentes d'ouvrir un site interdit.")
-                .font(.caption).foregroundStyle(.secondary)
-            HStack {
-                Text(model.config.blockVideoPath.isEmpty
-                     ? "Aucune vidéo"
-                     : (model.config.blockVideoPath as NSString).lastPathComponent)
-                    .lineLimit(1).truncationMode(.middle)
-                    .foregroundStyle(model.config.blockVideoPath.isEmpty ? .secondary : .primary)
-                Spacer()
-                if !model.config.blockVideoPath.isEmpty {
-                    Button("Retirer") { model.config.blockVideoPath = ""; model.saveConfig() }
-                        .buttonStyle(.borderless)
-                }
-                Button("Choisir…") { pickVideo() }
-            }
-        }
-    }
-
     // MARK: Helpers
 
     private func formatted(_ t: TimeInterval) -> String {
@@ -202,16 +178,6 @@ struct ConfigView: View {
                 model.config.allowedApps.append(id)
             }
         }
-        model.saveConfig()
-    }
-
-    private func pickVideo() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.movie, .video, .audiovisualContent]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.config.blockVideoPath = url.path
         model.saveConfig()
     }
 }

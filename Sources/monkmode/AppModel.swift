@@ -7,9 +7,6 @@ final class AppModel: ObservableObject {
     @Published var isActive = false
     @Published var remaining: TimeInterval = 0
 
-    /// Fourni par l'AppDelegate : joue la vidéo de blocage (chemin) sur le thread principal.
-    var onBlockVideo: ((String) -> Void)?
-
     private let enforcer = AppEnforcer()
     private var proxy: SiteProxy?
     private var endDate: Date?
@@ -35,19 +32,9 @@ final class AppModel: ObservableObject {
         isActive = true
         updateRemaining()
 
-        enforcer.onBlock = { [weak self] in
-            guard let self else { return }
-            let path = self.config.blockVideoPath
-            guard !path.isEmpty else { return }
-            DispatchQueue.main.async { self.onBlockVideo?(path) }
-        }
         enforcer.start(allowedApps: config.allowedApps)
 
-        // La vidéo plein écran n'est PAS déclenchée par le proxy : le trafic de
-        // fond des apps autorisées (télémétrie, navigateur) génère en continu
-        // des requêtes bloquées, ce qui ferait surgir la vidéo sans arrêt.
-        // Le proxy bloque silencieusement (403 dans l'onglet). Seule l'ouverture
-        // d'une app bloquée impose la vidéo (voir enforcer.onBlock).
+        // Le proxy bloque silencieusement les sites non autorisés (403 dans l'onglet).
         let p = SiteProxy(config: config, port: proxyPort)
         do {
             try p.start()

@@ -5,7 +5,6 @@ let proxyPort: UInt16 = 9797
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let model = AppModel()
-    private let videoOverlay = VideoOverlay()
     private var window: NSWindow?
     private var statusItem: NSStatusItem!
     private var tick: Timer?
@@ -16,11 +15,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ProxySettings.restore()
         }
         installSignalHandlers()
-
-        // Vidéo de motivation au blocage.
-        model.onBlockVideo = { [weak self] path in
-            self?.videoOverlay.play(path: path)
-        }
 
         setupWindow()
         setupStatusItem()
@@ -139,12 +133,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func stopSession() {
         if !model.stop() { NSSound.beep(); return }
-        videoOverlay.dismiss() // ne pas laisser la vidéo imposée après l'arrêt
         refreshStatus()
     }
 
     @objc private func onSessionEnded() {
-        videoOverlay.dismiss() // fin du temps imparti -> retirer la vidéo plein écran
         refreshStatus()
         let n = NSUserNotification()
         n.title = "Session MonkMode terminée"

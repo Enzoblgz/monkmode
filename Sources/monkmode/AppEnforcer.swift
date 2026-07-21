@@ -9,9 +9,6 @@ final class AppEnforcer {
     private var timer: Timer?
     private var allowed: Set<String> = []
 
-    /// Appelé quand une app non autorisée est masquée -> déclenche la vidéo plein écran.
-    var onBlock: (() -> Void)?
-
     /// Bundle IDs toujours épargnés en plus de la whitelist utilisateur.
     /// Inclut Finder, Réglages système et les composants d'UI système
     /// pour ne jamais bloquer l'accès aux réglages de la machine.
@@ -38,14 +35,11 @@ final class AppEnforcer {
         )
         // Balayage périodique de filet de sécurité.
         let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.sweep(playVideo: true)
+            self?.sweep()
         }
         RunLoop.main.add(t, forMode: .common)
         timer = t
-        // Balayage initial silencieux : on nettoie l'écran des apps ouvertes
-        // sans imposer la vidéo (sinon elle recouvre les apps autorisées au
-        // démarrage). La vidéo n'arrive qu'à l'ouverture/ré-activation ensuite.
-        sweep(playVideo: false)
+        sweep()
     }
 
     func stop() {
@@ -56,23 +50,21 @@ final class AppEnforcer {
 
     @objc private func appLaunched(_ note: Notification) {
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
-            sweep(playVideo: true)
+            sweep()
             return
         }
-        enforce(app, playVideo: true)
+        enforce(app)
     }
 
-    private func sweep(playVideo: Bool) {
+    private func sweep() {
         for app in NSWorkspace.shared.runningApplications {
-            enforce(app, playVideo: playVideo)
+            enforce(app)
         }
     }
 
-    /// Masque l'app non autorisée (au lieu de la fermer). Impose la vidéo
-    /// seulement si `playVideo` (ouverture/ré-activation active), pas au
-    /// nettoyage initial. On n'agit que sur les apps visibles : une fois
-    /// masquée (`isHidden` == true) on ne la re-traite pas.
-    private func enforce(_ app: NSRunningApplication, playVideo: Bool) {
+    /// Masque l'app non autorisée (au lieu de la fermer). On n'agit que sur les
+    /// apps visibles : une fois masquée (`isHidden` == true) on ne la re-traite pas.
+    private func enforce(_ app: NSRunningApplication) {
         guard app.activationPolicy == .regular else { return }   // uniquement apps GUI
         guard app != NSRunningApplication.current else { return } // pas nous-mêmes
         guard let bid = app.bundleIdentifier else { return }
@@ -80,6 +72,5 @@ final class AppEnforcer {
         guard !app.isHidden else { return } // déjà masquée -> rien à faire
 
         app.hide()
-        if playVideo { onBlock?() }
     }
 }
