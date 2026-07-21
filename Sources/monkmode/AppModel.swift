@@ -43,13 +43,12 @@ final class AppModel: ObservableObject {
         }
         enforcer.start(allowedApps: config.allowedApps)
 
+        // La vidéo plein écran n'est PAS déclenchée par le proxy : le trafic de
+        // fond des apps autorisées (télémétrie, navigateur) génère en continu
+        // des requêtes bloquées, ce qui ferait surgir la vidéo sans arrêt.
+        // Le proxy bloque silencieusement (403 dans l'onglet). Seule l'ouverture
+        // d'une app bloquée impose la vidéo (voir enforcer.onBlock).
         let p = SiteProxy(config: config, port: proxyPort)
-        p.onBlock = { [weak self] host in
-            guard let self else { return }
-            let path = self.config.blockVideoPath
-            guard !path.isEmpty else { return }
-            DispatchQueue.main.async { self.onBlockVideo?(path) }
-        }
         do {
             try p.start()
             proxy = p
