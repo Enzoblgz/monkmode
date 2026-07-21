@@ -10,6 +10,8 @@ struct Config: Codable {
     var presets: [Int]
     /// Si true, une session ne peut pas être arrêtée avant la fin.
     var hardcore: Bool
+    /// Chemin d'une vidéo jouée plein écran quand un site est bloqué (optionnel).
+    var blockVideoPath: String
 
     static let `default` = Config(
         allowedApps: [
@@ -19,8 +21,28 @@ struct Config: Codable {
             "wikipedia.org"
         ],
         presets: [25, 50, 90],
-        hardcore: false
+        hardcore: false,
+        blockVideoPath: ""
     )
+
+    init(allowedApps: [String], allowedDomains: [String], presets: [Int], hardcore: Bool, blockVideoPath: String) {
+        self.allowedApps = allowedApps
+        self.allowedDomains = allowedDomains
+        self.presets = presets
+        self.hardcore = hardcore
+        self.blockVideoPath = blockVideoPath
+    }
+
+    // Décodage tolérant : toute clé absente prend la valeur par défaut.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = Config.default
+        allowedApps = try c.decodeIfPresent([String].self, forKey: .allowedApps) ?? d.allowedApps
+        allowedDomains = try c.decodeIfPresent([String].self, forKey: .allowedDomains) ?? d.allowedDomains
+        presets = try c.decodeIfPresent([Int].self, forKey: .presets) ?? d.presets
+        hardcore = try c.decodeIfPresent(Bool.self, forKey: .hardcore) ?? d.hardcore
+        blockVideoPath = try c.decodeIfPresent(String.self, forKey: .blockVideoPath) ?? d.blockVideoPath
+    }
 
     static var configDir: URL {
         FileManager.default.homeDirectoryForCurrentUser

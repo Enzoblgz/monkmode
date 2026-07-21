@@ -10,6 +10,8 @@ final class SiteProxy {
     let port: UInt16
     private var config: Config
     private var listener: NWListener?
+    /// Appelé (sur la file du proxy) avec l'hôte à chaque requête bloquée.
+    var onBlock: ((String) -> Void)?
     private let queue = DispatchQueue(label: "com.enzo.monkmode.proxy", attributes: .concurrent)
 
     init(config: Config, port: UInt16) {
@@ -135,6 +137,7 @@ final class SiteProxy {
     }
 
     private func reject(_ conn: NWConnection, host: String) {
+        onBlock?(host)
         let body = "MonkMode a bloqué \(host)."
         let resp = """
         HTTP/1.1 403 Forbidden\r

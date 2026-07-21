@@ -1,127 +1,107 @@
 import AppKit
+import SwiftUI
 
 let proxyPort: UInt16 = 9797
 
-// MARK: - Gestion de session
-
-final class SessionManager {
-    private(set) var isActive = false
-    private(set) var endDate: Date?
-    private var config = Config.load()
-
-    private let enforcer = AppEnforcer()
-    private var proxy: SiteProxy?
-    private var endTimer: Timer?
-
-    var remaining: TimeInterval {
-        guard let endDate else { return 0 }
-        return max(0, endDate.timeIntervalSinceNow)
-    }
-
-    var presets: [Int] { config.presets }
-    var isHardcoreLocked: Bool { isActive && config.hardcore && remaining > 0 }
-
-    func reloadConfig() {
-        config = Config.load()
-    }
-
-    func start(minutes: Int) {
-        guard !isActive else { return }
-        config = Config.load()
-        isActive = true
-        endDate = Date().addingTimeInterval(TimeInterval(minutes * 60))
-
-        enforcer.start(allowedApps: config.allowedApps)
-
-        let p = SiteProxy(config: config, port: proxyPort)
-        do {
-            try p.start()
-            proxy = p
-            ProxySettings.enable(host: "127.0.0.1", port: proxyPort)
-        } catch {
-            NSLog("MonkMode: proxy non démarré (\(error)) — blocage sites inactif")
-        }
-
-        let t = Timer(timeInterval: remaining, repeats: false) { [weak self] _ in
-            self?.stop(force: true)
-            NotificationCenter.default.post(name: .sessionEnded, object: nil)
-        }
-        RunLoop.main.add(t, forMode: .common)
-        endTimer = t
-    }
-
-    /// Arrête la session. `force` ignore le verrou hardcore (fin de minuterie).
-    @discardableResult
-    func stop(force: Bool = false) -> Bool {
-        guard isActive else { return true }
-        if isHardcoreLocked && !force { return false }
-
-        endTimer?.invalidate(); endTimer = nil
-        enforcer.stop()
-        proxy?.stop(); proxy = nil
-        ProxySettings.restore()
-
-        isActive = false
-        endDate = nil
-        return true
-    }
-}
-
-extension Notification.Name {
-    static let sessionEnded = Notification.Name("monkmode.sessionEnded")
-}
-
-// MARK: - App
-
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let model = AppModel()
+    private let videoOverlay = VideoOverlay()
+    private var window: NSWindow?
     private var statusItem: NSStatusItem!
-    private let session = SessionManager()
     private var tick: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Nettoyage d'un éventuel proxy resté actif après un crash.
+        // Nettoyage d'un proxy resté actif après un crash.
         if FileManager.default.fileExists(atPath: ProxySettings.backupURL.path) {
             ProxySettings.restore()
         }
         installSignalHandlers()
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = "🔓"
+        // Vidéo de motivation au blocage.
+        model.onBlockVideo = { [weak self] path in
+            self?.videoOverlay.play(path: path)
+        }
+
+        setupWindow()
+        setupStatusItem()
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(onSessionEnded),
             name: .sessionEnded, object: nil
         )
 
-        rebuildMenu()
-
         let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.refreshTitle()
+            self?.refreshStatus()
         }
         RunLoop.main.add(t, forMode: .common)
         tick = t
     }
 
-    // MARK: Menu
+    // MARK: Fenêtre
+
+    private func setupWindow() {
+        let host = NSHostingController(rootView: ConfigView(model: model))
+        let win = NSWindow(contentViewController: host)
+        win.title = "MonkMode"
+        win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        win.setContentSize(NSSize(width: 480, height: 600))
+        win.center()
+        win.isReleasedWhenClosed = false
+        window = win
+        showWindow()
+    }
+
+    private func showWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    // Clic sur l'icône du Dock -> rouvre la fenêtre.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showWindow()
+        return true
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false // reste actif en tâche de fond (menu bar)
+    }
+
+    // MARK: Menu bar
+
+    private func setupStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        setIcon(active: false)
+        rebuildMenu()
+    }
+
+    private func setIcon(active: Bool) {
+        guard let button = statusItem.button else { return }
+        let name = active ? "lock.fill" : "lock.open"
+        button.image = NSImage(systemSymbolName: name, accessibilityDescription: "MonkMode")
+        button.image?.isTemplate = true
+        button.imagePosition = .imageLeading
+    }
 
     private func rebuildMenu() {
         let menu = NSMenu()
 
-        let status = NSMenuItem(title: statusLine(), action: nil, keyEquivalent: "")
-        status.isEnabled = false
-        menu.addItem(status)
+        let open = NSMenuItem(title: "Ouvrir MonkMode", action: #selector(openWindow), keyEquivalent: "")
+        open.target = self
+        menu.addItem(open)
         menu.addItem(.separator())
 
-        if session.isActive {
-            let stop = NSMenuItem(title: session.isHardcoreLocked ? "🔒 Verrouillé jusqu'à la fin"
-                                                                   : "Arrêter la session",
+        if model.isActive {
+            let line = NSMenuItem(title: "Focus — \(formatted(model.remaining)) restant", action: nil, keyEquivalent: "")
+            line.isEnabled = false
+            menu.addItem(line)
+            let stop = NSMenuItem(title: model.isHardcoreLocked ? "🔒 Verrouillé jusqu'à la fin" : "Arrêter la session",
                                   action: #selector(stopSession), keyEquivalent: "")
             stop.target = self
-            stop.isEnabled = !session.isHardcoreLocked
+            stop.isEnabled = !model.isHardcoreLocked
             menu.addItem(stop)
         } else {
-            for p in session.presets {
-                let item = NSMenuItem(title: "Démarrer \(p) min", action: #selector(startSession(_:)), keyEquivalent: "")
+            for p in model.config.presets {
+                let item = NSMenuItem(title: "Démarrer \(p) min", action: #selector(startPreset(_:)), keyEquivalent: "")
                 item.target = self
                 item.tag = p
                 menu.addItem(item)
@@ -129,41 +109,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         menu.addItem(.separator())
-
-        let edit = NSMenuItem(title: "Modifier la configuration…", action: #selector(editConfig), keyEquivalent: "")
-        edit.target = self
-        menu.addItem(edit)
-
-        let reload = NSMenuItem(title: "Recharger la configuration", action: #selector(reloadConfig), keyEquivalent: "")
-        reload.target = self
-        reload.isEnabled = !session.isActive
-        menu.addItem(reload)
-
-        menu.addItem(.separator())
-
         let quit = NSMenuItem(title: "Quitter MonkMode", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
-        quit.isEnabled = !session.isHardcoreLocked
+        quit.isEnabled = !model.isHardcoreLocked
         menu.addItem(quit)
 
         statusItem.menu = menu
     }
 
-    private func statusLine() -> String {
-        guard session.isActive else { return "MonkMode — inactif" }
-        return "Focus en cours — \(formatted(session.remaining)) restant"
-    }
-
-    private func refreshTitle() {
-        if session.isActive {
-            statusItem.button?.title = "🔒 \(formatted(session.remaining))"
-        } else {
-            statusItem.button?.title = "🔓"
-        }
-        // Met à jour la ligne d'état si le menu est ouvert.
-        if let first = statusItem.menu?.items.first {
-            first.title = statusLine()
-        }
+    private func refreshStatus() {
+        setIcon(active: model.isActive)
+        statusItem.button?.title = model.isActive ? " \(formatted(model.remaining))" : ""
+        rebuildMenu()
     }
 
     private func formatted(_ t: TimeInterval) -> String {
@@ -173,47 +130,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Actions
 
-    @objc private func startSession(_ sender: NSMenuItem) {
-        session.start(minutes: sender.tag)
-        rebuildMenu()
-        refreshTitle()
+    @objc private func openWindow() { showWindow() }
+
+    @objc private func startPreset(_ sender: NSMenuItem) {
+        model.start(minutes: sender.tag)
+        refreshStatus()
     }
 
     @objc private func stopSession() {
-        if session.stop() {
-            rebuildMenu()
-            refreshTitle()
-        } else {
-            NSSound.beep()
-        }
+        if !model.stop() { NSSound.beep(); return }
+        videoOverlay.dismiss() // ne pas laisser la vidéo imposée après l'arrêt
+        refreshStatus()
     }
 
     @objc private func onSessionEnded() {
-        rebuildMenu()
-        refreshTitle()
+        videoOverlay.dismiss() // fin du temps imparti -> retirer la vidéo plein écran
+        refreshStatus()
         let n = NSUserNotification()
-        n.title = "Session focus terminée"
+        n.title = "Session MonkMode terminée"
         n.informativeText = "Tout est débloqué. Beau travail."
         NSUserNotificationCenter.default.deliver(n)
     }
 
-    @objc private func editConfig() {
-        _ = Config.load() // garantit l'existence du fichier
-        NSWorkspace.shared.open(Config.configURL)
-    }
-
-    @objc private func reloadConfig() {
-        session.reloadConfig()
-        rebuildMenu()
-    }
-
     @objc private func quit() {
-        guard !session.isHardcoreLocked else { NSSound.beep(); return }
-        session.stop(force: true)
+        guard !model.isHardcoreLocked else { NSSound.beep(); return }
+        model.stop(force: true)
         NSApp.terminate(nil)
     }
 
-    // MARK: Nettoyage
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        model.isHardcoreLocked ? .terminateCancel : .terminateNow
+    }
+
+    // MARK: Nettoyage proxy
 
     private func installSignalHandlers() {
         atexit { ProxySettings.restore() }
@@ -227,8 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 // Mode test : démarre uniquement le proxy (aucun blocage d'app, aucun proxy
-// système). Sert à valider la logique de filtrage. Usage :
-//   MONKMODE_PROXY_TEST="example.com" .build/debug/monkmode
+// système). Usage : MONKMODE_PROXY_TEST="example.com" .build/debug/monkmode
 if let allow = ProcessInfo.processInfo.environment["MONKMODE_PROXY_TEST"] {
     var cfg = Config.default
     cfg.allowedDomains = allow.split(separator: ",").map(String.init)
@@ -241,5 +189,5 @@ if let allow = ProcessInfo.processInfo.environment["MONKMODE_PROXY_TEST"] {
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
-app.setActivationPolicy(.accessory)
+app.setActivationPolicy(.regular) // icône dans le Dock + fenêtre
 app.run()

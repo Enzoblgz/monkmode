@@ -1,13 +1,16 @@
 import AppKit
 
-/// Tue en continu toute application GUI non autorisée.
+/// Masque en continu toute application GUI non autorisée (sans la fermer).
 ///
 /// Sécurité : ne touche qu'aux apps « regular » (présence dans le Dock).
-/// Les démons/agents système (.accessory, .prohibited) ne sont jamais tués,
+/// Les démons/agents système (.accessory, .prohibited) ne sont jamais touchés,
 /// ce qui évite de casser macOS. Finder et MonkMode lui-même sont épargnés.
 final class AppEnforcer {
     private var timer: Timer?
     private var allowed: Set<String> = []
+
+    /// Appelé quand une app non autorisée est masquée -> déclenche la vidéo plein écran.
+    var onBlock: (() -> Void)?
 
     /// Bundle IDs toujours épargnés en plus de la whitelist utilisateur.
     private let alwaysAllow: Set<String> = [
@@ -49,23 +52,26 @@ final class AppEnforcer {
             sweep()
             return
         }
-        kill(app)
+        enforce(app)
     }
 
     private func sweep() {
         for app in NSWorkspace.shared.runningApplications {
-            kill(app)
+            enforce(app)
         }
     }
 
-    private func kill(_ app: NSRunningApplication) {
+    /// Masque l'app non autorisée (au lieu de la fermer) et impose la vidéo.
+    /// On n'agit que sur les apps visibles : une fois masquée, on ne la re-traite
+    /// pas (`isHidden` == true), ce qui évite de rejouer la vidéo en boucle.
+    private func enforce(_ app: NSRunningApplication) {
         guard app.activationPolicy == .regular else { return }   // uniquement apps GUI
         guard app != NSRunningApplication.current else { return } // pas nous-mêmes
         guard let bid = app.bundleIdentifier else { return }
         if allowed.contains(bid) || alwaysAllow.contains(bid) { return }
+        guard !app.isHidden else { return } // déjà masquée -> rien à faire
 
-        if !app.terminate() {
-            app.forceTerminate()
-        }
+        app.hide()
+        onBlock?()
     }
 }

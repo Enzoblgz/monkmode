@@ -3,11 +3,15 @@
 set -e
 cd "$(dirname "$0")"
 
+# .build sur Google Drive fait planter sqlite (build.db: disk I/O error).
+# On build dans un scratch local hors Drive, puis on copie le binaire.
+SCRATCH="${TMPDIR:-/tmp}/monkmode-build"
+
 echo "→ Compilation release…"
-swift build -c release
+swift build -c release --scratch-path "$SCRATCH"
 
 APP="MonkMode.app"
-BIN=".build/release/monkmode"
+BIN="$SCRATCH/release/monkmode"
 
 echo "→ Assemblage de $APP…"
 rm -rf "$APP"

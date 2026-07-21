@@ -1,0 +1,93 @@
+import AppKit
+import AVKit
+
+/// Joue une vidéo plein écran par-dessus tout (rappel de motivation au blocage).
+/// Se ferme à la fin de la vidéo, ou sur Échap / clic.
+final class VideoOverlay: NSObject {
+    private var window: NSWindow?
+    private var player: AVPlayer?
+    private var lastShown = Date.distantPast
+
+    /// Affiche la vidéo. Ignoré si déjà en cours ou joué il y a moins de 5 s.
+    func play(path: String) {
+        guard window == nil else { return }
+        guard Date().timeIntervalSince(lastShown) > 5 else { return }
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: path) else {
+            NSLog("MonkMode: vidéo de blocage introuvable: \(path)")
+            NSSound.beep()
+            return
+        }
+        lastShown = Date()
+
+        let screen = NSScreen.main ?? NSScreen.screens.first!
+        let win = KeyableWindow(
+            contentRect: screen.frame,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        win.level = .screenSaver
+        win.isOpaque = true
+        win.backgroundColor = .black
+        win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        win.setFrame(screen.frame, display: true)
+
+        let p = AVPlayer(url: url)
+        let view = AVPlayerView(frame: screen.frame)
+        view.player = p
+        view.controlsStyle = .none
+        view.videoGravity = .resizeAspect
+        win.contentView = ClickCatcher(target: self, action: #selector(dismiss))
+
+        let pv = view
+        pv.autoresizingMask = [.width, .height]
+        win.contentView?.addSubview(pv)
+
+        self.window = win
+        self.player = p
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(dismiss),
+            name: .AVPlayerItemDidPlayToEndTime, object: p.currentItem
+        )
+
+        NSApp.activate(ignoringOtherApps: true)
+        win.makeKeyAndOrderFront(nil)
+        win.makeFirstResponder(win.contentView) // pour recevoir l'Échap
+        p.play()
+    }
+
+    /// Fenêtre borderless capable de devenir « key » -> reçoit les touches (Échap).
+    private final class KeyableWindow: NSWindow {
+        override var canBecomeKey: Bool { true }
+        override var canBecomeMain: Bool { true }
+    }
+
+    @objc func dismiss() {
+        player?.pause()
+        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+        window?.orderOut(nil)
+        window = nil
+        player = nil
+    }
+
+    /// Vue qui capte Échap et le clic pour fermer.
+    private final class ClickCatcher: NSView {
+        weak var target: AnyObject?
+        let action: Selector
+        init(target: AnyObject, action: Selector) {
+            self.target = target
+            self.action = action
+            super.init(frame: .zero)
+        }
+        required init?(coder: NSCoder) { fatalError() }
+        override var acceptsFirstResponder: Bool { true }
+        override func mouseDown(with event: NSEvent) {
+            _ = target?.perform(action)
+        }
+        override func keyDown(with event: NSEvent) {
+            if event.keyCode == 53 { _ = target?.perform(action) } // Échap
+        }
+    }
+}
