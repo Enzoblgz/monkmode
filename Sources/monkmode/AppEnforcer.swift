@@ -13,8 +13,12 @@ final class AppEnforcer {
     var onBlock: (() -> Void)?
 
     /// Bundle IDs toujours épargnés en plus de la whitelist utilisateur.
+    /// Inclut Finder, Réglages système et les composants d'UI système
+    /// pour ne jamais bloquer l'accès aux réglages de la machine.
     private let alwaysAllow: Set<String> = [
         "com.apple.finder",
+        "com.apple.systempreferences",   // Réglages système (Ventura+)
+        "com.apple.SystemPreferences",   // Préférences Système (anciens macOS)
         "com.apple.dock",
         "com.apple.systemuiserver",
         "com.apple.controlcenter",
