@@ -1,0 +1,4 @@
+.build/
+FocusLock.app/
+*.xcodeproj
+.DS_Store
