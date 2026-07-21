@@ -26,13 +26,23 @@ enum ProxySettings {
     /// Sauvegarde l'état actuel puis pointe tous les services actifs vers host:port.
     static func enable(host: String, port: UInt16) {
         let services = activeServices()
-        var states: [Backup.ServiceState] = []
-        for s in services {
-            states.append(currentState(of: s))
-        }
-        let backup = Backup(services: states)
-        if let data = try? JSONEncoder().encode(backup) {
-            try? data.write(to: backupURL)
+
+        // Ne PAS écraser une sauvegarde existante : elle contient l'état
+        // ORIGINAL de l'utilisateur (une session précédente ne s'est pas
+        // restaurée). L'écraser enregistrerait notre propre proxy comme
+        // « état normal » -> restauration cassée en boucle.
+        if (try? Data(contentsOf: backupURL)) == nil {
+            var states: [Backup.ServiceState] = []
+            for s in services {
+                // Si l'état courant pointe déjà vers NOTRE proxy (résidu d'une
+                // session mal fermée), on le neutralise : on ne veut jamais
+                // sauvegarder 127.0.0.1:9797 comme état à restaurer.
+                states.append(sanitized(currentState(of: s), ourHost: host, ourPort: String(port)))
+            }
+            let backup = Backup(services: states)
+            if let data = try? JSONEncoder().encode(backup) {
+                try? data.write(to: backupURL)
+            }
         }
 
         var cmds: [[String]] = []
@@ -60,7 +70,11 @@ enum ProxySettings {
         }
 
         var cmds: [[String]] = []
-        for st in backup.services {
+        for raw in backup.services {
+            // Filet de sécurité : une sauvegarde qui pointe vers notre proxy
+            // (127.0.0.1:proxyPort) est corrompue -> on la traite comme « off »
+            // au lieu de rétablir un proxy mort qui couperait internet.
+            let st = sanitized(raw, ourHost: "127.0.0.1", ourPort: String(proxyPort))
             if !st.webServer.isEmpty {
                 cmds.append(["-setwebproxy", st.service, st.webServer, st.webPort])
             }
@@ -82,6 +96,19 @@ enum ProxySettings {
             .split(separator: "\n")
             .map { String($0) }
             .filter { !$0.contains("An asterisk") && !$0.hasPrefix("*") && !$0.isEmpty }
+    }
+
+    /// Neutralise un état qui pointe déjà vers notre propre proxy (résidu d'une
+    /// session précédente mal restaurée) : traité comme « pas de proxy ».
+    private static func sanitized(_ state: Backup.ServiceState, ourHost: String, ourPort: String) -> Backup.ServiceState {
+        var s = state
+        if s.webServer == ourHost && s.webPort == ourPort {
+            s.webEnabled = false; s.webServer = ""; s.webPort = ""
+        }
+        if s.secureServer == ourHost && s.securePort == ourPort {
+            s.secureEnabled = false; s.secureServer = ""; s.securePort = ""
+        }
+        return s
     }
 
     private static func currentState(of service: String) -> Backup.ServiceState {
