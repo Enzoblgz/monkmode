@@ -39,4 +39,13 @@ PLIST
 # Signature ad-hoc pour que macOS accepte le lancement local.
 codesign --force --deep --sign - "$APP" 2>/dev/null || true
 
-echo "✓ $APP prête. Lance-la avec :  open $APP"
+# Installe dans ~/Applications pour que Spotlight/Launchpad la trouvent
+# (le dossier du projet est dans Google Drive, non indexé par Spotlight).
+INSTALL="$HOME/Applications/MonkMode.app"
+rm -rf "$INSTALL"
+mkdir -p "$HOME/Applications"
+cp -R "$APP" "$INSTALL"
+codesign --force --deep --sign - "$INSTALL" 2>/dev/null || true
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$INSTALL" 2>/dev/null || true
+
+echo "✓ $APP prête et installée dans ~/Applications (cherche « MonkMode » dans Spotlight)."
