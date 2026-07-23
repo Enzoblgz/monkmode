@@ -55,6 +55,12 @@ final class AppModel: ObservableObject {
 
         // Le proxy bloque silencieusement les sites non autorisés (403 dans l'onglet).
         let p = SiteProxy(config: config, port: proxyPort)
+        // Filet : si le listener du proxy tombe en cours de session, on débranche
+        // le proxy système pour ne pas laisser toutes les apps sans réseau.
+        p.onListenerDown = {
+            NSLog("MonkMode: listener proxy tombé — proxy système débranché (réseau préservé, blocage sites off)")
+            ProxySettings.restore()
+        }
         do {
             try p.start()
             proxy = p

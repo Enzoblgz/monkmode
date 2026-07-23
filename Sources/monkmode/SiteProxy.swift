@@ -12,6 +12,10 @@ final class SiteProxy {
     private var listener: NWListener?
     /// Appelé (sur la file du proxy) avec l'hôte à chaque requête bloquée.
     var onBlock: ((String) -> Void)?
+    /// Appelé si le listener tombe en cours de route (ex: épuisement de
+    /// descripteurs). Sert à débrancher le proxy système pour ne jamais laisser
+    /// les apps sur un port sans écoute.
+    var onListenerDown: (() -> Void)?
     private let queue = DispatchQueue(label: "com.enzo.monkmode.proxy", attributes: .concurrent)
 
     init(config: Config, port: UInt16) {
@@ -26,6 +30,12 @@ final class SiteProxy {
         l.newConnectionHandler = { [weak self] conn in
             self?.accept(conn)
         }
+        // Si le listener échoue (ex: plus de descripteurs), on prévient pour que
+        // le proxy système soit débranché -> le réseau ne meurt jamais en silence
+        // sur un port sans écoute. (.cancelled = arrêt volontaire, on l'ignore.)
+        l.stateUpdateHandler = { [weak self] state in
+            if case .failed = state { self?.onListenerDown?() }
+        }
         l.start(queue: queue)
         listener = l
     }
@@ -39,7 +49,13 @@ final class SiteProxy {
 
     private func accept(_ conn: NWConnection) {
         conn.start(queue: queue)
+        // Filet anti-fuite : une connexion ouverte sans jamais envoyer sa requête
+        // (preconnect TCP fréquent chez Chrome/Spotify) est fermée au bout de 10 s
+        // au lieu de rester ouverte indéfiniment et d'épuiser les descripteurs.
+        let timeout = DispatchWorkItem { conn.cancel() }
+        queue.asyncAfter(deadline: .now() + 10, execute: timeout)
         conn.receive(minimumIncompleteLength: 1, maximumLength: 16384) { [weak self] data, _, _, error in
+            timeout.cancel()
             guard let self, let data, !data.isEmpty, error == nil else {
                 conn.cancel(); return
             }
@@ -97,13 +113,29 @@ final class SiteProxy {
             port: NWEndpoint.Port(rawValue: port)!,
             using: .tcp
         )
+        let lock = NSLock()
         var finished = false
+        // Résout la connexion une seule fois (thread-safe sur la file concurrente).
+        func settle(_ result: NWConnection?) {
+            lock.lock()
+            if finished { lock.unlock(); return }
+            finished = true
+            lock.unlock()
+            completion(result)
+        }
+        // Filet anti-fuite : un amont qui resterait en .preparing/.waiting (domaine
+        // lent, hôte mort) est abandonné au bout de 10 s au lieu de pendre.
+        let timeout = DispatchWorkItem { conn.cancel(); settle(nil) }
+        queue.asyncAfter(deadline: .now() + 10, execute: timeout)
         conn.stateUpdateHandler = { state in
             switch state {
             case .ready:
-                if !finished { finished = true; completion(conn) }
+                timeout.cancel(); settle(conn)
             case .failed, .cancelled:
-                if !finished { finished = true; completion(nil) }
+                timeout.cancel(); settle(nil)
+            case .waiting:
+                // Pas de route / hôte injoignable -> abandon immédiat.
+                timeout.cancel(); conn.cancel(); settle(nil)
             default:
                 break
             }
