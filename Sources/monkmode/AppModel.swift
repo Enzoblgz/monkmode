@@ -32,7 +32,9 @@ final class AppModel: ObservableObject {
         isActive = true
         updateRemaining()
 
-        enforcer.start(allowedApps: config.allowedApps)
+        // Provider relu à chaque balayage -> rechargement à chaud de la whitelist
+        // (ajouter une app dans config.json est pris en compte sans redémarrer).
+        enforcer.start(allowedProvider: { Config.load().allowedApps })
 
         // Le proxy bloque silencieusement les sites non autorisés (403 dans l'onglet).
         let p = SiteProxy(config: config, port: proxyPort)

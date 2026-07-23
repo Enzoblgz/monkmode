@@ -8,6 +8,10 @@ import AppKit
 final class AppEnforcer {
     private var timer: Timer?
     private var allowed: Set<String> = []
+    /// Relit la whitelist à chaque balayage -> rechargement à chaud : ajouter
+    /// une app à la config est pris en compte en ~1 s, même en pleine session
+    /// hardcore, sans redémarrer MonkMode.
+    private var allowedProvider: () -> [String] = { [] }
 
     /// Bundle IDs toujours épargnés en plus de la whitelist utilisateur.
     /// Inclut Finder, Réglages système et les composants d'UI système
@@ -24,8 +28,9 @@ final class AppEnforcer {
         "com.apple.WindowManager"
     ]
 
-    func start(allowedApps: [String]) {
-        allowed = Set(allowedApps)
+    func start(allowedProvider: @escaping () -> [String]) {
+        self.allowedProvider = allowedProvider
+        allowed = Set(allowedProvider())
         // Notification à chaque lancement d'app -> réaction immédiate.
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
@@ -49,6 +54,7 @@ final class AppEnforcer {
     }
 
     @objc private func appLaunched(_ note: Notification) {
+        allowed = Set(allowedProvider()) // relit la whitelist (hot-reload)
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
             sweep()
             return
@@ -57,6 +63,7 @@ final class AppEnforcer {
     }
 
     private func sweep() {
+        allowed = Set(allowedProvider()) // relit la whitelist (hot-reload)
         for app in NSWorkspace.shared.runningApplications {
             enforce(app)
         }
