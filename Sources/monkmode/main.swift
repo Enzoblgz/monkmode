@@ -88,6 +88,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let line = NSMenuItem(title: "Focus — \(formatted(model.remaining)) restant", action: nil, keyEquivalent: "")
             line.isEnabled = false
             menu.addItem(line)
+            // Ajouter du temps : toujours possible, même en hardcore (on durcit).
+            let addMenu = NSMenu()
+            for m in [15, 30, 60] {
+                let it = NSMenuItem(title: "+\(m) min", action: #selector(addTime(_:)), keyEquivalent: "")
+                it.target = self
+                it.tag = m
+                addMenu.addItem(it)
+            }
+            let addItem = NSMenuItem(title: "Ajouter du temps", action: nil, keyEquivalent: "")
+            addItem.submenu = addMenu
+            menu.addItem(addItem)
+
             let stop = NSMenuItem(title: model.isHardcoreLocked ? "🔒 Verrouillé jusqu'à la fin" : "Arrêter la session",
                                   action: #selector(stopSession), keyEquivalent: "")
             stop.target = self
@@ -128,6 +140,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Actions
 
     @objc private func openWindow() { showWindow() }
+
+    @objc private func addTime(_ sender: NSMenuItem) {
+        model.addTime(minutes: sender.tag)
+        refreshStatus()
+    }
 
     @objc private func startPreset(_ sender: NSMenuItem) {
         model.start(minutes: sender.tag)

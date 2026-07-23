@@ -12,6 +12,12 @@ final class AppModel: ObservableObject {
     private var endDate: Date?
     private var tick: Timer?
 
+    /// Whitelist figée au démarrage de la session. Pendant le focus, la liste
+    /// EFFECTIVE = sessionAllowed ∩ config actuelle : on peut RETIRER une app
+    /// (elle disparaît de la config -> masquée), mais pas en AJOUTER une
+    /// nouvelle (absente de sessionAllowed -> reste bloquée). Anti-triche.
+    private var sessionAllowed: Set<String> = []
+
     init() {
         config = Config.load()
         let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -25,16 +31,27 @@ final class AppModel: ObservableObject {
 
     func saveConfig() { config.save() }
 
+    /// Prolonge la session en cours. On ne peut QUE rajouter du temps.
+    func addTime(minutes: Int) {
+        guard isActive, minutes > 0, let end = endDate else { return }
+        endDate = end.addingTimeInterval(TimeInterval(minutes * 60))
+        updateRemaining()
+    }
+
     func start(minutes: Int) {
         guard !isActive, minutes > 0 else { return }
         config.save() // persiste les réglages en cours
         endDate = Date().addingTimeInterval(TimeInterval(minutes * 60))
         isActive = true
+        sessionAllowed = Set(config.allowedApps) // figée pour toute la session
         updateRemaining()
 
-        // Provider relu à chaque balayage -> rechargement à chaud de la whitelist
-        // (ajouter une app dans config.json est pris en compte sans redémarrer).
-        enforcer.start(allowedProvider: { Config.load().allowedApps })
+        // Liste effective = figée ∩ config actuelle -> on peut retirer une app
+        // pendant le focus (durcir), jamais en ajouter (assouplir).
+        enforcer.start(allowedProvider: { [weak self] in
+            guard let self else { return [] }
+            return Array(self.sessionAllowed.intersection(Config.load().allowedApps))
+        })
 
         // Le proxy bloque silencieusement les sites non autorisés (403 dans l'onglet).
         let p = SiteProxy(config: config, port: proxyPort)
@@ -59,6 +76,7 @@ final class AppModel: ObservableObject {
         isActive = false
         endDate = nil
         remaining = 0
+        sessionAllowed = []
         return true
     }
 

@@ -47,6 +47,19 @@ struct ConfigView: View {
             Text(formatted(model.remaining))
                 .font(.system(size: 54, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+
+            // Ajouter du temps : toujours possible (on ne peut que durcir).
+            VStack(spacing: 4) {
+                HStack {
+                    ForEach([15, 30, 60], id: \.self) { m in
+                        Button("+\(durationLabel(m))") { model.addTime(minutes: m) }
+                            .buttonStyle(.bordered)
+                    }
+                }
+                Text("On ne peut qu'ajouter du temps, jamais en retirer.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+
             if model.isHardcoreLocked {
                 Label("Mode hardcore — verrouillé jusqu'à la fin", systemImage: "lock.shield")
                     .foregroundStyle(.orange)
@@ -137,8 +150,12 @@ struct ConfigView: View {
                 } label: { Label("Ajouter…", systemImage: "plus") }
                 .disabled(model.isActive)
             }
+            if model.isActive {
+                Text("Pendant le focus : tu peux retirer une app (plus stricte), pas en ajouter.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if model.config.allowedApps.isEmpty {
-                Text("Aucune app autorisée — tout sera fermé.")
+                Text("Aucune app autorisée — tout sera masqué.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             ForEach(model.config.allowedApps, id: \.self) { bid in
@@ -151,7 +168,6 @@ struct ConfigView: View {
                         model.saveConfig()
                     } label: { Image(systemName: "trash") }
                     .buttonStyle(.borderless)
-                    .disabled(model.isActive)
                 }
                 .padding(.vertical, 2)
             }
